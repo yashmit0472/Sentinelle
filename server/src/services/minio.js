@@ -12,6 +12,7 @@ const ensureBuckets = async () => {
     const buckets = [
         process.env.MINIO_BUCKET_RAW,
         process.env.MINIO_BUCKET_FRAMES,
+        process.env.MINIO_BUCKET_REPORTS,
     ]
 
     for (const bucket of buckets) {

@@ -5,12 +5,15 @@ const Redis = require('ioredis')
 require('dotenv').config()
 
 const { ensureBuckets } = require('./services/minio')
+const authRoutes = require('./routes/authRoutes')
 
 const app = express()
 const redis = new Redis(process.env.REDIS_URL)
 
 app.use(cors())
 app.use(express.json())
+
+app.use('/api/auth', authRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({

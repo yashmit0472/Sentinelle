@@ -36,6 +36,10 @@ const videoJobSchema = new mongoose.Schema(
       type: Number,
     },
 
+    queueJobId: {
+      type: String,
+    },
+
     status: {
       type: String,
       enum: [

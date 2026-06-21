@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import api from '../api/api'
 
 const JobsPage = () => {
@@ -32,6 +33,7 @@ const JobsPage = () => {
               <th>Progress</th>
               <th>Size</th>
               <th>Uploaded At</th>
+              <th>Actions</th>
             </tr>
           </thead>
 
@@ -47,6 +49,14 @@ const JobsPage = () => {
                 <td>{job.progress}%</td>
                 <td>{(job.size / (1024 * 1024)).toFixed(2)} MB</td>
                 <td>{new Date(job.createdAt).toLocaleString()}</td>
+
+                <td>
+                    {job.status === 'completed' && (
+                      <Link to={`/jobs/${job._id}/frames`}>
+                        View Frames
+                      </Link>
+                    )}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -36,7 +36,40 @@ const uploadFile = async (bucket, objectName, filePath, contentType) => {
 }
 
 const getSignedUrl = async (bucket, objectName, expiry = 3600) => {
-  return await minioClient.presignedGetObject(bucket, objectName, expiry)
+  let url = await minioClient.presignedGetObject(
+    bucket,
+    objectName,
+    expiry
+  )
+
+  url = url.replace(
+    'http://minio:9000',
+    'http://localhost:9000'
+  )
+
+  return url
+}
+
+const listObjects = async (bucket, prefix) => {
+  return new Promise((resolve, reject) => {
+    const objects = []
+
+    const stream = minioClient.listObjects(
+      bucket,
+      prefix,
+      true
+    )
+
+    stream.on('data', (obj) => {
+      objects.push(obj)
+    })
+
+    stream.on('error', reject)
+
+    stream.on('end', () => {
+      resolve(objects)
+    })
+  })
 }
 
 module.exports = {
@@ -44,4 +77,5 @@ module.exports = {
   ensureBuckets,
   uploadFile,
   getSignedUrl,
+  listObjects,
 }

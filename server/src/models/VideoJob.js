@@ -75,6 +75,23 @@ const videoJobSchema = new mongoose.Schema(
       default: 0,
     },
 
+    processingStats: {
+      extractionTimeMs: {
+        type: Number,
+        default: 0,
+      },
+
+      uploadTimeMs: {
+        type: Number,
+        default: 0,
+      },
+
+      totalProcessingTimeMs: {
+        type: Number,
+        default: 0,
+      },
+  },
+
     errorMessage: {
       type: String,
     },

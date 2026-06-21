@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import UploadPage from './pages/UploadPage'
 import JobsPage from './pages/JobsPage'
+import FramesPage from './pages/FramesPage'
 
 const App = () => {
   return (
@@ -23,6 +24,7 @@ const App = () => {
           <Route index element={<DashboardPage />} />
           <Route path="upload" element={<UploadPage />} />
           <Route path="jobs" element={<JobsPage />} />
+          <Route path="jobs/:id/frames" element={<FramesPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

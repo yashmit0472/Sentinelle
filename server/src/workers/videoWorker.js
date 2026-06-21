@@ -27,19 +27,23 @@ const startVideoWorker = () => {
       videoJob.startedAt = new Date()
       await videoJob.save()
 
-      const { data } = await axios.post(`${process.env.AI_WORKER_URL}/process`, {
-        videoJobId: videoJob._id.toString(),
-        bucketName: videoJob.bucketName,
-        objectName: videoJob.objectName,
-        originalFileName: videoJob.originalFileName,
-      })
+      const { data } = await axios.post(
+        `${process.env.AI_WORKER_URL}/process`,
+        {
+          videoJobId: videoJob._id.toString(),
+          bucketName: videoJob.bucketName,
+          objectName: videoJob.objectName,
+        }
+      )
+
+      videoJob.totalFrames = data.totalFrames
+      videoJob.processedFrames = data.processedFrames
+      videoJob.flaggedFrames = data.flaggedFrames
 
       videoJob.status = 'completed'
       videoJob.progress = 100
       videoJob.completedAt = new Date()
-      videoJob.totalFrames = data.totalFrames || 0
-      videoJob.processedFrames = data.processedFrames || 0
-      videoJob.flaggedFrames = data.flaggedFrames || 0
+
       await videoJob.save()
 
       console.log(`Completed video job: ${videoJobId}`)

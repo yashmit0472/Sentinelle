@@ -7,6 +7,8 @@ const VideoSource = require('../models/VideoSource')
 const AuditLog = require('../models/AuditLog')
 
 const { uploadFile, getSignedUrl } = require('../services/minio')
+const { videoQueue } = require('../queues/videoQueue')
+const { listObjects } = require('../services/minio')
 
 const uploadVideo = async (req, res) => {
   try {
@@ -56,6 +58,23 @@ const uploadVideo = async (req, res) => {
       progress: 0,
     })
 
+    const queueJob = await videoQueue.add(
+      'process-video',
+      {
+        videoJobId: job._id.toString(),
+      },
+      {
+        attempts: 3,
+        removeOnComplete: true,
+        removeOnFail: false,
+      }
+    )
+
+    job.queueJobId = queueJob.id
+    job.status = 'queued'
+
+    await job.save()
+
     await AuditLog.create({
       user: req.user.id,
       action: 'UPLOAD_VIDEO',
@@ -83,6 +102,7 @@ const uploadVideo = async (req, res) => {
       message: 'Video uploaded successfully',
       job: {
         id: job._id,
+        queueJobId: job.queueJobId,
         source: job.source,
         originalFileName: job.originalFileName,
         objectName: job.objectName,
@@ -155,8 +175,41 @@ const getVideoJobById = async (req, res) => {
   }
 }
 
+const getVideoFrames = async (req, res) => {
+  try {
+    const job = await VideoJob.findById(req.params.id)
+
+    if (!job) {
+      return res.status(404).json({
+        message: 'Video job not found',
+      })
+    }
+
+    const objects = await listObjects(
+      process.env.MINIO_BUCKET_FRAMES,
+      `${job._id}/`
+    )
+
+    const frames = objects.map((obj) => ({
+      name: obj.name,
+      url: `http://localhost:9000/${process.env.MINIO_BUCKET_FRAMES}/${obj.name}`,
+    }))
+
+    res.json({
+      count: frames.length,
+      frames,
+    })
+  } catch (error) {
+    res.status(500).json({
+      message: 'Failed to fetch frames',
+      error: error.message,
+    })
+  }
+}
+
 module.exports = {
   uploadVideo,
   getVideoJobs,
   getVideoJobById,
+  getVideoFrames,
 }

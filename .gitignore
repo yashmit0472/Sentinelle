@@ -1,39 +1,17 @@
-# Environment variables
 .env
-.env.*
-!.env.example
+node_modules
+client/node_modules
+server/node_modules
 
-# Dependencies
-node_modules/
+dist
+build
 
-# Build output
-dist/
-build/
+__pycache__
+*.pyc
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
+frames.json
+temp
+uploads
 
-# Logs
-logs/
-*.log
-npm-debug.log*
-
-# OS files
 .DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Docker
-*.env.local
-
-# MinIO data
-minio-data/
+.vscode

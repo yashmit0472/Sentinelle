@@ -1,7 +1,7 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
 
-const isDev = !app.isPackaged
+const isDev = process.env.ELECTRON_DEV === 'true'
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -18,7 +18,7 @@ function createWindow() {
   })
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL('http://127.0.0.1:5173')
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }

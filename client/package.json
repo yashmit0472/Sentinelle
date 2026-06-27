@@ -5,9 +5,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "electron": "wait-on http://localhost:5173 && electron .",
-    "desktop:dev": "concurrently \"npm run dev\" \"npm run electron\"",
+    "dev": "vite --host 127.0.0.1",
+    "electron:dev": "wait-on http://127.0.0.1:5173 && cross-env ELECTRON_DEV=true electron .",
+    "desktop:dev": "concurrently \"npm run dev\" \"npm run electron:dev\"",
     "build": "vite build",
     "desktop:preview": "npm run build && electron .",
     "lint": "eslint ."
@@ -25,6 +25,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
     "electron": "^42.5.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",

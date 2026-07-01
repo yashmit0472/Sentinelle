@@ -5,6 +5,7 @@ const {
   getVideoJobs,
   getVideoJobById,
   getVideoFrames,
+  streamVideoFrame,
 } = require('../controllers/videoController')
 
 const uploadMiddleware = require('../middleware/uploadMiddleware')
@@ -20,5 +21,11 @@ router.get('/jobs', protect, getVideoJobs)
 router.get('/jobs/:id', protect, getVideoJobById)
 
 router.get('/jobs/:id/frames', protect, getVideoFrames)
+
+router.get(
+  '/jobs/:id/frames/:frameName/view',
+  protect,
+  streamVideoFrame
+)
 
 module.exports = router

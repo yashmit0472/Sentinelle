@@ -1,9 +1,79 @@
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../api/api.js'
 
+const FrameImage = ({ frame }) => {
+  const [src, setSrc] = useState('')
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let objectUrl = ''
+    let cancelled = false
+
+    const loadFrame = async () => {
+      try {
+        const res = await api.get(frame.viewPath, {
+          responseType: 'blob',
+        })
+
+        objectUrl = URL.createObjectURL(res.data)
+
+        if (!cancelled) {
+          setSrc(objectUrl)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(true)
+        }
+      }
+    }
+
+    loadFrame()
+
+    return () => {
+      cancelled = true
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [frame.viewPath])
+
+  if (error) {
+    return (
+      <div className="card">
+        <p>Failed to load frame</p>
+      </div>
+    )
+  }
+
+  if (!src) {
+    return (
+      <div className="card">
+        <p>Loading frame...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <img
+        src={src}
+        alt={frame.frameName}
+        style={{
+          width: '100%',
+          borderRadius: '8px',
+        }}
+      />
+      <small>{frame.frameName}</small>
+    </div>
+  )
+}
+
 function FramesPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['frames', id],
@@ -19,9 +89,22 @@ function FramesPage() {
 
   return (
     <div>
-      <h2>Extracted Frames</h2>
+      <div className="page-header">
+        <div>
+          <h2>Extracted Frames</h2>
+          <p>Total Frames: {data.count}</p>
+        </div>
 
-      <p>Total Frames: {data.count}</p>
+        <div className="page-actions">
+          <button type="button" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+
+          <Link className="button-link" to="/jobs">
+            Back to Jobs
+          </Link>
+        </div>
+      </div>
 
       <div
         style={{
@@ -31,16 +114,7 @@ function FramesPage() {
         }}
       >
         {data.frames.map((frame) => (
-          <div key={frame.name}>
-            <img
-              src={frame.url}
-              alt={frame.name}
-              style={{
-                width: '100%',
-                borderRadius: '8px',
-              }}
-            />
-          </div>
+          <FrameImage key={frame.name} frame={frame} />
         ))}
       </div>
     </div>

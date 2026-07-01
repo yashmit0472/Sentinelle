@@ -171,3 +171,26 @@ td {
   color: #94a3b8;
   margin-bottom: 12px;
 }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.button-link {
+  display: inline-block;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+}

@@ -72,10 +72,15 @@ const listObjects = async (bucket, prefix) => {
   })
 }
 
+const streamObject = async (bucket, objectName) => {
+  return await minioClient.getObject(bucket, objectName)
+}
+
 module.exports = {
   minioClient,
   ensureBuckets,
   uploadFile,
   getSignedUrl,
   listObjects,
+  streamObject,
 }

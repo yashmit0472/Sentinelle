@@ -14,6 +14,8 @@ def extract_frames(video_path, output_dir):
         "ffmpeg",
         "-i",
         video_path,
+        "-vf",
+        "fps=1/2",
         "-q:v",
         "2",
         output_pattern,

@@ -14,8 +14,10 @@ DEFAULT_THREAT_OBJECT_CLASSES = {
 model_path = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")
 
 if model_path and os.path.exists(model_path):
+    print(f"Loading YOLO model from: {model_path}")
     model = YOLO(model_path)
 else:
+    print("YOLO_MODEL_PATH not found. Falling back to yolov8n.pt")
     model = YOLO("yolov8n.pt")
 
 confidence_threshold = float(
@@ -32,6 +34,29 @@ if env_classes:
     }
 else:
     THREAT_OBJECT_CLASSES = DEFAULT_THREAT_OBJECT_CLASSES
+
+MODEL_CLASSES = {
+    str(name).lower()
+    for name in model.names.values()
+}
+
+SUPPORTED_THREAT_CLASSES = THREAT_OBJECT_CLASSES.intersection(MODEL_CLASSES)
+MISSING_THREAT_CLASSES = THREAT_OBJECT_CLASSES.difference(MODEL_CLASSES)
+
+print("YOLO model loaded.")
+print(f"YOLO confidence threshold: {confidence_threshold}")
+print(f"Threat object classes configured: {sorted(THREAT_OBJECT_CLASSES)}")
+print(f"Threat classes supported by this model: {sorted(SUPPORTED_THREAT_CLASSES)}")
+
+if MISSING_THREAT_CLASSES:
+    print(
+        "WARNING: These threat classes are configured but not present "
+        f"in the YOLO model labels: {sorted(MISSING_THREAT_CLASSES)}"
+    )
+    print(
+        "These objects cannot be detected until you use a custom model "
+        "trained with these labels."
+    )
 
 
 def detect_objects(frame_path):

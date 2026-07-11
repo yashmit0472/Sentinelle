@@ -9,6 +9,7 @@ from minio_client import minio_client
 from video_processor import extract_frames
 from yolo_detector import detect_objects
 from text_detector import detect_threat_text
+from audio_detector import detect_threat_audio
 
 app = FastAPI(title="Sentinelle AI Worker")
 
@@ -114,23 +115,31 @@ def build_text_comment(matched_terms):
     )
 
 
-def build_explanation(object_detections, text_result):
-    comments = []
+def build_audio_comment(audio_findings):
+    terms = sorted({
+        term
+        for finding in audio_findings
+        for term in finding.get("matchedTerms", [])
+    })
 
-    if object_detections:
-        comments.append(build_object_comment(object_detections))
+    if len(terms) == 1:
+        return (
+            "Audio detection flagged this timestamp because spoken audio "
+            f"contains the threat keyword: {terms[0]}."
+        )
 
-    if text_result["flagged"]:
-        comments.append(build_text_comment(text_result["matchedTerms"]))
+    return (
+        "Audio detection flagged this timestamp because spoken audio "
+        "contains threat keywords: "
+        + ", ".join(terms)
+        + "."
+    )
 
-    return " ".join(comments)
 
+def get_category(has_object, has_text, has_audio):
+    count = sum([has_object, has_text, has_audio])
 
-def get_category(object_detections, text_result):
-    has_object = len(object_detections) > 0
-    has_text = text_result["flagged"]
-
-    if has_object and has_text:
+    if count > 1:
         return "multiple"
 
     if has_object:
@@ -139,14 +148,16 @@ def get_category(object_detections, text_result):
     if has_text:
         return "threat_text"
 
+    if has_audio:
+        return "threat_audio"
+
     return "other"
 
 
-def get_detection_source(object_detections, text_result):
-    has_object = len(object_detections) > 0
-    has_text = text_result["flagged"]
+def get_detection_source(has_object, has_text, has_audio):
+    count = sum([has_object, has_text, has_audio])
 
-    if has_object and has_text:
+    if count > 1:
         return "multi"
 
     if has_object:
@@ -155,7 +166,150 @@ def get_detection_source(object_detections, text_result):
     if has_text:
         return "text"
 
+    if has_audio:
+        return "audio"
+
     return "manual"
+
+
+def find_nearest_frame(audio_seconds, frame_files):
+    if not frame_files:
+        return None
+
+    return min(
+        frame_files,
+        key=lambda frame: abs(
+            timestamp_from_frame_name(frame) - audio_seconds
+        )
+    )
+
+
+def create_empty_evidence(frame):
+    timestamp_seconds = timestamp_from_frame_name(frame)
+
+    return {
+        "frameName": frame,
+        "timestampSeconds": timestamp_seconds,
+        "timestampLabel": format_timestamp(timestamp_seconds),
+
+        "objectDetections": [],
+        "ocrText": "",
+        "textTerms": [],
+        "textSeverity": None,
+
+        "audioFindings": [],
+    }
+
+
+def build_incident(video_job_id, flagged_bucket, evidence):
+    frame = evidence["frameName"]
+    frame_object_name = f"{video_job_id}/{frame}"
+
+    object_detections = evidence["objectDetections"]
+    has_object = len(object_detections) > 0
+
+    has_text = len(evidence["textTerms"]) > 0
+    has_audio = len(evidence["audioFindings"]) > 0
+
+    comments = []
+
+    if has_object:
+        comments.append(build_object_comment(object_detections))
+
+    if has_text:
+        comments.append(build_text_comment(evidence["textTerms"]))
+
+    if has_audio:
+        comments.append(build_audio_comment(evidence["audioFindings"]))
+
+    object_confidence = 0
+
+    if has_object:
+        object_confidence = max(
+            detection["confidence"]
+            for detection in object_detections
+        )
+
+    text_confidence = 0.75 if has_text else 0
+
+    audio_confidence = 0
+
+    if has_audio:
+        audio_confidence = max(
+            finding.get("confidence", 0)
+            for finding in evidence["audioFindings"]
+        )
+
+    object_severity = (
+        severity_from_detections(object_detections)
+        if has_object
+        else None
+    )
+
+    audio_severities = [
+        finding.get("severity")
+        for finding in evidence["audioFindings"]
+    ]
+
+    matched_terms = sorted(set(
+        [detection["label"] for detection in object_detections]
+        + evidence["textTerms"]
+        + [
+            term
+            for finding in evidence["audioFindings"]
+            for term in finding.get("matchedTerms", [])
+        ]
+    ))
+
+    transcript_text = " ".join([
+        finding.get("transcriptText", "")
+        for finding in evidence["audioFindings"]
+        if finding.get("transcriptText")
+    ])
+
+    return {
+        "frameObjectName": frame_object_name,
+        "frameBucketName": flagged_bucket,
+        "frameName": frame,
+
+        "timestampSeconds": evidence["timestampSeconds"],
+        "timestampLabel": evidence["timestampLabel"],
+
+        "category": get_category(
+            has_object,
+            has_text,
+            has_audio
+        ),
+        "detectionSource": get_detection_source(
+            has_object,
+            has_text,
+            has_audio
+        ),
+
+        "severity": highest_severity([
+            object_severity,
+            evidence["textSeverity"],
+            *audio_severities,
+        ]),
+        "confidence": max(
+            object_confidence,
+            text_confidence,
+            audio_confidence,
+        ),
+
+        "matchedTerms": matched_terms,
+        "detections": object_detections,
+
+        "ocrText": evidence["ocrText"],
+        "transcriptText": transcript_text,
+
+        "explanation": " ".join(comments),
+        "recommendedAction": (
+            "Review this flagged evidence and verify whether the detected "
+            "object, visible text, or spoken audio indicates a real "
+            "security threat."
+        ),
+    }
 
 
 @app.post("/process")
@@ -168,8 +322,10 @@ def process_video(payload: dict):
 
     temp_video_dir = "temp/videos"
     temp_frame_dir = f"temp/frames/{video_job_id}"
+    temp_audio_dir = f"temp/audio/{video_job_id}"
 
     os.makedirs(temp_video_dir, exist_ok=True)
+    os.makedirs(temp_audio_dir, exist_ok=True)
 
     video_filename = os.path.basename(object_name)
     local_video_path = os.path.join(
@@ -179,10 +335,10 @@ def process_video(payload: dict):
 
     flagged_bucket = os.getenv("MINIO_BUCKET_FRAMES", "flagged-frames")
 
-    incidents = []
+    evidence_by_frame = {}
+
     total_frames = 0
     processed_frames = 0
-    flagged_frames = 0
 
     try:
         minio_client.fget_object(
@@ -212,105 +368,83 @@ def process_video(payload: dict):
             has_text_threat = text_result["flagged"]
 
             if has_object_threat or has_text_threat:
-                frame_object_name = f"{video_job_id}/{frame}"
-
-                minio_client.fput_object(
-                    flagged_bucket,
-                    frame_object_name,
-                    frame_path,
-                    content_type="image/jpeg"
+                evidence = evidence_by_frame.get(
+                    frame,
+                    create_empty_evidence(frame)
                 )
 
-                timestamp_seconds = timestamp_from_frame_name(frame)
-                timestamp_label = format_timestamp(timestamp_seconds)
+                if has_object_threat:
+                    evidence["objectDetections"] = object_detections
 
-                object_confidence = 0
+                if has_text_threat:
+                    evidence["ocrText"] = text_result["ocrText"]
+                    evidence["textTerms"] = text_result["matchedTerms"]
+                    evidence["textSeverity"] = text_result["severity"]
 
-                if object_detections:
-                    object_confidence = max(
-                        detection["confidence"]
-                        for detection in object_detections
-                    )
+                evidence_by_frame[frame] = evidence
 
-                text_confidence = 0.75 if has_text_threat else 0
-                confidence = max(object_confidence, text_confidence)
+        print("Running audio threat detection...")
 
-                object_terms = [
-                    detection["label"]
-                    for detection in object_detections
-                ]
+        audio_findings = detect_threat_audio(
+            local_video_path,
+            temp_audio_dir
+        )
 
-                text_terms = text_result["matchedTerms"]
+        for finding in audio_findings:
+            audio_seconds = int(finding.get("timestampSeconds", 0))
+            nearest_frame = find_nearest_frame(
+                audio_seconds,
+                frame_files
+            )
 
-                matched_terms = sorted(set(object_terms + text_terms))
+            if not nearest_frame:
+                continue
 
-                object_severity = (
-                    severity_from_detections(object_detections)
-                    if has_object_threat
-                    else None
-                )
+            evidence = evidence_by_frame.get(
+                nearest_frame,
+                create_empty_evidence(nearest_frame)
+            )
 
-                text_severity = (
-                    text_result["severity"]
-                    if has_text_threat
-                    else None
-                )
+            evidence["audioFindings"].append(finding)
 
-                severity = highest_severity([
-                    object_severity,
-                    text_severity,
-                ])
+            evidence_by_frame[nearest_frame] = evidence
 
-                incident = {
-                    "frameObjectName": frame_object_name,
-                    "frameBucketName": flagged_bucket,
-                    "frameName": frame,
+        incidents = []
 
-                    "timestampSeconds": timestamp_seconds,
-                    "timestampLabel": timestamp_label,
+        for frame, evidence in evidence_by_frame.items():
+            frame_path = os.path.join(
+                temp_frame_dir,
+                frame
+            )
 
-                    "category": get_category(
-                        object_detections,
-                        text_result
-                    ),
-                    "detectionSource": get_detection_source(
-                        object_detections,
-                        text_result
-                    ),
+            frame_object_name = f"{video_job_id}/{frame}"
 
-                    "severity": severity,
-                    "confidence": confidence,
+            minio_client.fput_object(
+                flagged_bucket,
+                frame_object_name,
+                frame_path,
+                content_type="image/jpeg"
+            )
 
-                    "matchedTerms": matched_terms,
-                    "detections": object_detections,
+            incident = build_incident(
+                video_job_id,
+                flagged_bucket,
+                evidence
+            )
 
-                    "ocrText": text_result["ocrText"],
+            incidents.append(incident)
 
-                    "explanation": build_explanation(
-                        object_detections,
-                        text_result
-                    ),
-                    "recommendedAction": (
-                        "Review this flagged evidence and verify whether "
-                        "the detected object or visible text indicates a "
-                        "real security threat."
-                    ),
-                }
-
-                incidents.append(incident)
-                flagged_frames += 1
-
-                print(
-                    f"Flagged {frame} at {timestamp_label}: "
-                    f"{matched_terms}"
-                )
+            print(
+                f"Flagged {frame} at {incident['timestampLabel']}: "
+                f"{incident['matchedTerms']}"
+            )
 
         return {
             "status": "processed",
             "videoJobId": video_job_id,
             "totalFrames": total_frames,
             "processedFrames": processed_frames,
-            "flaggedFrames": flagged_frames,
+            "flaggedFrames": len(incidents),
             "incidents": incidents,
         }
 
@@ -322,8 +456,8 @@ def process_video(payload: dict):
             "error": str(error),
             "totalFrames": total_frames,
             "processedFrames": processed_frames,
-            "flaggedFrames": flagged_frames,
-            "incidents": incidents,
+            "flaggedFrames": 0,
+            "incidents": [],
         }
 
     finally:
@@ -332,3 +466,6 @@ def process_video(payload: dict):
 
         if os.path.exists(temp_frame_dir):
             shutil.rmtree(temp_frame_dir)
+
+        if os.path.exists(temp_audio_dir):
+            shutil.rmtree(temp_audio_dir)

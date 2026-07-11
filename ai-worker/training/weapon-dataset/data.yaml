@@ -1,0 +1,12 @@
+path: /app/training/weapon-dataset
+train: images/train
+val: images/val
+
+names:
+  0: gun
+  1: pistol
+  2: rifle
+  3: knife
+  4: grenade
+  5: bomb
+  6: explosive

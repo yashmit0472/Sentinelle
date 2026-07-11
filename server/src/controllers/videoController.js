@@ -5,11 +5,11 @@ const { randomUUID } = require('crypto')
 const VideoJob = require('../models/VideoJob')
 const VideoSource = require('../models/VideoSource')
 const AuditLog = require('../models/AuditLog')
+const Incident = require('../models/Incident')
 
 const {
   uploadFile,
   getSignedUrl,
-  listObjects,
   streamObject,
 } = require('../services/minio')
 
@@ -190,22 +190,43 @@ const getVideoFrames = async (req, res) => {
       })
     }
 
-    const objects = await listObjects(
-      process.env.MINIO_BUCKET_FRAMES,
-      `${job._id}/`
-    )
-
-    const frames = objects.map((obj) => {
-      const frameName = path.basename(obj.name)
-
-      return {
-        name: obj.name,
-        frameName,
-        viewPath: `/videos/jobs/${job._id}/frames/${encodeURIComponent(
-          frameName
-        )}/view`,
-      }
+    const incidents = await Incident.find({
+      job: job._id,
+    }).sort({
+      timestampSeconds: 1,
+      createdAt: 1,
     })
+
+    const frames = incidents
+      .filter((incident) => incident.frameObjectName)
+      .map((incident) => {
+        const frameName =
+          incident.frameName || path.basename(incident.frameObjectName)
+
+        return {
+          incidentId: incident._id,
+          name: incident.frameObjectName,
+          frameName,
+          viewPath: `/videos/jobs/${job._id}/frames/${encodeURIComponent(
+            frameName
+          )}/view`,
+
+          timestampSeconds: incident.timestampSeconds,
+          timestampLabel: incident.timestampLabel,
+
+          category: incident.category,
+          detectionSource: incident.detectionSource,
+          severity: incident.severity,
+          confidence: incident.confidence,
+
+          matchedTerms: incident.matchedTerms,
+          detections: incident.detections,
+
+          explanation: incident.explanation,
+          recommendedAction: incident.recommendedAction,
+          reviewStatus: incident.reviewStatus,
+        }
+      })
 
     res.json({
       count: frames.length,

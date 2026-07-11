@@ -3,6 +3,7 @@ const IORedis = require('ioredis')
 const axios = require('axios')
 
 const VideoJob = require('../models/VideoJob')
+const Incident = require('../models/Incident')
 
 const startVideoWorker = () => {
   const connection = new IORedis(process.env.REDIS_URL, {
@@ -25,6 +26,7 @@ const startVideoWorker = () => {
       videoJob.status = 'processing'
       videoJob.progress = 10
       videoJob.startedAt = new Date()
+      videoJob.errorMessage = undefined
       await videoJob.save()
 
       const { data } = await axios.post(
@@ -36,9 +38,56 @@ const startVideoWorker = () => {
         }
       )
 
-      videoJob.totalFrames = data.totalFrames
-      videoJob.processedFrames = data.processedFrames
-      videoJob.flaggedFrames = data.flaggedFrames
+      if (data.status === 'failed') {
+        throw new Error(data.message || data.error || 'AI worker failed')
+      }
+
+      const incidents = Array.isArray(data.incidents) ? data.incidents : []
+
+      await Incident.deleteMany({
+        job: videoJob._id,
+      })
+
+      if (incidents.length > 0) {
+        await Incident.insertMany(
+          incidents.map((incident) => ({
+            job: videoJob._id,
+            source: videoJob.source || undefined,
+
+            frameObjectName: incident.frameObjectName,
+            frameBucketName:
+              incident.frameBucketName || process.env.MINIO_BUCKET_FRAMES,
+            frameName: incident.frameName,
+
+            timestampSeconds: incident.timestampSeconds || 0,
+            timestampLabel: incident.timestampLabel || '00:00:00',
+
+            category: incident.category || 'other',
+            detectionSource: incident.detectionSource || 'object',
+
+            severity: incident.severity || 'medium',
+            confidence: incident.confidence || 0,
+
+            matchedTerms: incident.matchedTerms || [],
+            detections: incident.detections || [],
+
+            transcriptText: incident.transcriptText,
+            ocrText: incident.ocrText,
+
+            explanation:
+              incident.explanation ||
+              'Flagged because a security threat indicator was detected.',
+
+            recommendedAction:
+              incident.recommendedAction ||
+              'Review this evidence and verify the threat indicator.',
+          }))
+        )
+      }
+
+      videoJob.totalFrames = data.totalFrames || 0
+      videoJob.processedFrames = data.processedFrames || 0
+      videoJob.flaggedFrames = incidents.length || data.flaggedFrames || 0
 
       videoJob.status = 'completed'
       videoJob.progress = 100

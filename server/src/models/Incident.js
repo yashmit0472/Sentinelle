@@ -1,5 +1,27 @@
 const mongoose = require('mongoose')
 
+const detectionSchema = new mongoose.Schema(
+  {
+    label: {
+      type: String,
+    },
+
+    confidence: {
+      type: Number,
+      min: 0,
+      max: 1,
+    },
+
+    bbox: {
+      type: [Number],
+      default: [],
+    },
+  },
+  {
+    _id: false,
+  }
+)
+
 const incidentSchema = new mongoose.Schema(
   {
     job: {
@@ -15,12 +37,14 @@ const incidentSchema = new mongoose.Schema(
 
     frameObjectName: {
       type: String,
-      required: true,
     },
 
     frameBucketName: {
       type: String,
-      required: true,
+    },
+
+    frameName: {
+      type: String,
     },
 
     timestampSeconds: {
@@ -28,29 +52,69 @@ const incidentSchema = new mongoose.Schema(
       required: true,
     },
 
+    timestampLabel: {
+      type: String,
+    },
+
     category: {
       type: String,
+      enum: [
+        'threat_text',
+        'threat_audio',
+        'harmful_object',
+        'restricted_zone_violation',
+        'suspicious_activity',
+        'multiple',
+        'other',
+      ],
+      required: true,
+    },
+
+    detectionSource: {
+      type: String,
+      enum: ['text', 'audio', 'object', 'zone', 'multi', 'manual'],
       required: true,
     },
 
     severity: {
       type: String,
       enum: ['low', 'medium', 'high', 'critical'],
-      default: 'low',
+      default: 'medium',
     },
 
     confidence: {
       type: Number,
       min: 0,
       max: 1,
+      default: 0,
+    },
+
+    matchedTerms: {
+      type: [String],
+      default: [],
+    },
+
+    detections: {
+      type: [detectionSchema],
+      default: [],
+    },
+
+    transcriptText: {
+      type: String,
+    },
+
+    ocrText: {
+      type: String,
     },
 
     explanation: {
       type: String,
+      required: true,
     },
 
     recommendedAction: {
       type: String,
+      default: 'Review this evidence and verify the threat indicator.',
     },
 
     reviewStatus: {
@@ -72,5 +136,9 @@ const incidentSchema = new mongoose.Schema(
     timestamps: true,
   }
 )
+
+incidentSchema.index({ job: 1, timestampSeconds: 1 })
+incidentSchema.index({ category: 1, detectionSource: 1 })
+incidentSchema.index({ reviewStatus: 1 })
 
 module.exports = mongoose.model('Incident', incidentSchema)

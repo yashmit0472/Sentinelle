@@ -3,6 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../api/api.js'
 
+const formatConfidence = (confidence) => {
+  if (!confidence && confidence !== 0) return 'N/A'
+  return `${Math.round(confidence * 100)}%`
+}
+
 const FrameImage = ({ frame }) => {
   const [src, setSrc] = useState('')
   const [error, setError] = useState(false)
@@ -57,15 +62,45 @@ const FrameImage = ({ frame }) => {
   }
 
   return (
-    <div>
+    <div className="card">
       <img
         src={src}
         alt={frame.frameName}
         style={{
           width: '100%',
           borderRadius: '8px',
+          marginBottom: '10px',
         }}
       />
+
+      <h3>{frame.timestampLabel || '00:00:00'}</h3>
+
+      <p>
+        <strong>Reason:</strong> {frame.explanation}
+      </p>
+
+      <p>
+        <strong>Category:</strong> {frame.category}
+      </p>
+
+      <p>
+        <strong>Detection:</strong> {frame.detectionSource}
+      </p>
+
+      <p>
+        <strong>Severity:</strong> {frame.severity}
+      </p>
+
+      <p>
+        <strong>Confidence:</strong> {formatConfidence(frame.confidence)}
+      </p>
+
+      {frame.matchedTerms?.length > 0 && (
+        <p>
+          <strong>Matched:</strong> {frame.matchedTerms.join(', ')}
+        </p>
+      )}
+
       <small>{frame.frameName}</small>
     </div>
   )
@@ -83,16 +118,16 @@ function FramesPage() {
     },
   })
 
-  if (isLoading) return <p>Loading frames...</p>
+  if (isLoading) return <p>Loading flagged evidence...</p>
 
-  if (error) return <p>Failed to load frames</p>
+  if (error) return <p>Failed to load flagged evidence</p>
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h2>Extracted Frames</h2>
-          <p>Total Frames: {data.count}</p>
+          <h2>Flagged Evidence</h2>
+          <p>Total Flagged Frames: {data.count}</p>
         </div>
 
         <div className="page-actions">
@@ -106,15 +141,21 @@ function FramesPage() {
         </div>
       </div>
 
+      {data.frames.length === 0 && (
+        <div className="card">
+          <p>No flagged threat indicators found for this video.</p>
+        </div>
+      )}
+
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
           gap: '12px',
         }}
       >
         {data.frames.map((frame) => (
-          <FrameImage key={frame.name} frame={frame} />
+          <FrameImage key={frame.incidentId} frame={frame} />
         ))}
       </div>
     </div>

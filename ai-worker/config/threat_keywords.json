@@ -1,0 +1,31 @@
+{
+  "critical": [
+    "terrorist",
+    "terrorism",
+    "bomb",
+    "blast",
+    "explosive",
+    "grenade",
+    "rifle",
+    "gun",
+    "attack"
+  ],
+  "high": [
+    "riot",
+    "riots",
+    "violence",
+    "weapon",
+    "ammo",
+    "ammunition",
+    "fire",
+    "shoot",
+    "shooting"
+  ],
+  "medium": [
+    "threat",
+    "danger",
+    "target",
+    "protest",
+    "mob"
+  ]
+}

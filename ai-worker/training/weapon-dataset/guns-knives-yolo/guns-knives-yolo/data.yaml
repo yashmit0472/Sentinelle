@@ -1,0 +1,10 @@
+path: /app/training/weapon-dataset/guns-knives-yolo/guns-knives-yolo
+
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 2
+names:
+  0: knife
+  1: pistol 

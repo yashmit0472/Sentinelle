@@ -1,5 +1,8 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+
+const navClassName = ({ isActive }) =>
+  `sidebar__link${isActive ? ' sidebar__link--active' : ''}`
 
 const Layout = () => {
   const { user, logout } = useAuth()
@@ -16,9 +19,21 @@ const Layout = () => {
         <h2>Sentinelle</h2>
 
         <nav>
-          <Link to="/">Dashboard</Link>
-          <Link to="/upload">Upload Video</Link>
-          <Link to="/jobs">Video Jobs</Link>
+          <NavLink end to="/" className={navClassName}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/upload" className={navClassName}>
+            Upload Video
+          </NavLink>
+          <NavLink to="/jobs" className={navClassName}>
+            Video Jobs
+          </NavLink>
+          <NavLink to="/incidents" className={navClassName}>
+            Incidents
+          </NavLink>
+          <NavLink to="/reports" className={navClassName}>
+            Reports
+          </NavLink>
         </nav>
 
         <div className="user-box">

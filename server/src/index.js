@@ -9,6 +9,8 @@ const authRoutes = require('./routes/authRoutes')
 const sourceRoutes = require('./routes/sourceRoutes')
 const videoRoutes = require('./routes/videoRoutes')
 const { startVideoWorker } = require('./workers/videoWorker')
+const incidentRoutes = require('./routes/incidentRoutes')
+const reportRoutes = require('./routes/reportRoutes')
 
 const app = express()
 const redis = new Redis(process.env.REDIS_URL)
@@ -19,6 +21,8 @@ app.use(express.json())
 app.use('/api/auth', authRoutes)
 app.use('/api/sources', sourceRoutes)
 app.use('/api/videos', videoRoutes)
+app.use('/api/incidents', incidentRoutes)
+app.use('/api/reports', reportRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({

@@ -6,10 +6,14 @@ const VideoJob = require('../models/VideoJob')
 const VideoSource = require('../models/VideoSource')
 const AuditLog = require('../models/AuditLog')
 const Incident = require('../models/Incident')
+const VideoReport = require('../models/VideoReport')
 
 const {
   uploadFile,
   getSignedUrl,
+  listObjects,
+  removeObject,
+  removeObjects,
   streamObject,
 } = require('../services/minio')
 
@@ -278,10 +282,75 @@ const streamVideoFrame = async (req, res) => {
   }
 }
 
+const deleteVideoJob = async (req, res) => {
+  try {
+    const job = await VideoJob.findById(req.params.id)
+
+    if (!job) {
+      return res.status(404).json({
+        message: 'Video job not found',
+      })
+    }
+
+    if (job.status === 'processing') {
+      return res.status(409).json({
+        message: 'Cannot delete a job while it is processing',
+      })
+    }
+
+    const framePrefix = `${job._id}/`
+    const frameObjects = await listObjects(
+      process.env.MINIO_BUCKET_FRAMES,
+      framePrefix
+    )
+
+    await Promise.all([
+      removeObject(job.bucketName, job.objectName).catch(() => null),
+      removeObjects(
+        process.env.MINIO_BUCKET_FRAMES,
+        frameObjects.map((object) => object.name).filter(Boolean)
+      ).catch(() => null),
+      Incident.deleteMany({
+        job: job._id,
+      }),
+      VideoReport.deleteOne({
+        job: job._id,
+      }),
+    ])
+
+    await AuditLog.create({
+      user: req.user.id,
+      action: 'DELETE_VIDEO_JOB',
+      entityType: 'VideoJob',
+      entityId: job._id,
+      details: {
+        originalFileName: job.originalFileName,
+        objectName: job.objectName,
+        bucketName: job.bucketName,
+        deletedAt: new Date(),
+      },
+      ipAddress: req.ip,
+    })
+
+    await job.deleteOne()
+
+    res.json({
+      message: 'Video job deleted successfully',
+      id: req.params.id,
+    })
+  } catch (error) {
+    res.status(500).json({
+      message: 'Failed to delete video job',
+      error: error.message,
+    })
+  }
+}
+
 module.exports = {
   uploadVideo,
   getVideoJobs,
   getVideoJobById,
   getVideoFrames,
   streamVideoFrame,
+  deleteVideoJob,
 }

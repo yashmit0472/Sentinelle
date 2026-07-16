@@ -22,6 +22,30 @@ const detectionSchema = new mongoose.Schema(
   }
 )
 
+const analystNoteSchema = new mongoose.Schema(
+  {
+    note: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    _id: true,
+  }
+)
+
 const incidentSchema = new mongoose.Schema(
   {
     job: {
@@ -118,19 +142,67 @@ const incidentSchema = new mongoose.Schema(
     },
 
     reviewStatus: {
+  type: String,
+  enum: [
+    'new',
+    'under_review',
+    'confirmed',
+    'dismissed',
+    'escalated',
+    'closed',
+  ],
+  default: 'new',
+},
+
+reviewedBy: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+},
+
+reviewedAt: {
+  type: Date,
+},
+
+reviewNote: {
+  type: String,
+  default: '',
+},
+
+reviewHistory: [
+  {
+    status: {
       type: String,
-      enum: ['new', 'under_review', 'confirmed', 'dismissed', 'escalated'],
-      default: 'new',
     },
 
-    reviewedBy: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
 
-    reviewNote: {
+    note: {
       type: String,
     },
+
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+],
+
+analystNotes: {
+  type: [analystNoteSchema],
+  default: [],
+},
+
+assignedTo: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+},
+
+caseId: {
+  type: String,
+},
   },
   {
     timestamps: true,
@@ -140,5 +212,11 @@ const incidentSchema = new mongoose.Schema(
 incidentSchema.index({ job: 1, timestampSeconds: 1 })
 incidentSchema.index({ category: 1, detectionSource: 1 })
 incidentSchema.index({ reviewStatus: 1 })
+incidentSchema.index({
+  explanation: 'text',
+  ocrText: 'text',
+  transcriptText: 'text',
+  matchedTerms: 'text',
+})
 
 module.exports = mongoose.model('Incident', incidentSchema)

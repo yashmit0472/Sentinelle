@@ -72,6 +72,18 @@ const listObjects = async (bucket, prefix) => {
   })
 }
 
+const removeObject = async (bucket, objectName) => {
+  await minioClient.removeObject(bucket, objectName)
+}
+
+const removeObjects = async (bucket, objectNames) => {
+  if (!Array.isArray(objectNames) || objectNames.length === 0) {
+    return
+  }
+
+  await minioClient.removeObjects(bucket, objectNames)
+}
+
 const streamObject = async (bucket, objectName) => {
   return await minioClient.getObject(bucket, objectName)
 }
@@ -82,5 +94,7 @@ module.exports = {
   uploadFile,
   getSignedUrl,
   listObjects,
+  removeObject,
+  removeObjects,
   streamObject,
 }

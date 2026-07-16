@@ -1,8 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../api/api'
+import { useAuth } from '../context/AuthContext'
 
 const JobsPage = () => {
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['video-jobs'],
     queryFn: async () => {
@@ -10,6 +14,30 @@ const JobsPage = () => {
       return res.data
     },
   })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (jobId) => {
+      const response = await api.delete(`/videos/jobs/${jobId}`)
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['video-jobs'],
+      })
+    },
+  })
+
+  const handleDelete = async (job) => {
+    const confirmed = window.confirm(
+      `Delete "${job.originalFileName}" and its linked incidents, frames, and report?`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    await deleteMutation.mutateAsync(job._id)
+  }
 
   if (isLoading) {
     return <p>Loading jobs...</p>
@@ -51,11 +79,30 @@ const JobsPage = () => {
                 <td>{new Date(job.createdAt).toLocaleString()}</td>
 
                 <td>
+                  <div className="job-actions">
                     {job.status === 'completed' && (
                       <Link to={`/jobs/${job._id}/frames`}>
                         View Frames
                       </Link>
                     )}
+
+                    {user?.role === 'admin' && (
+                      <button
+                        type="button"
+                        className="job-delete-button"
+                        onClick={() => handleDelete(job)}
+                        disabled={
+                          deleteMutation.isPending &&
+                          deleteMutation.variables === job._id
+                        }
+                      >
+                        {deleteMutation.isPending &&
+                        deleteMutation.variables === job._id
+                          ? 'Deleting...'
+                          : 'Delete'}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
